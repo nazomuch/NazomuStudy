@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>B5 単語プリントジェネレーター（HTML）</title>
+<style>
+  :root{--frame-width:820px; --paper-bg:#ffffff; --accent:#0b63d6}
+  body{font-family:system-ui,-apple-system,"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,Arial; background:#f3f4f6; margin:20px; color:#111}
+  .container{max-width:1100px;margin:0 auto}
+  h1{font-size:20px;margin:0 0 12px}
+  .controls{background:#fff;padding:14px;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.06); margin-bottom:14px}
+  .row{display:flex;gap:8px;margin-bottom:8px;align-items:center}
+  .row input[type="text"], .row input[type="number"]{padding:6px;border:1px solid #d1d5db;border-radius:6px}
+  .row label{width:56px;font-size:14px}
+  .grid-rows{display:grid;grid-template-columns:1fr;gap:6px;max-height:420px;overflow:auto;padding-right:6px}
+  .grid-rows .r{display:flex;gap:8px;align-items:center}
+  .grid-rows input.word{width: 180px;}
+  .grid-rows input.small{width:180px}
+  .grid-rows input.part{width:50px}
+  .btn{padding:8px 12px;border-radius:6px;border:0;cursor:pointer}
+  .btn.primary{background:var(--accent);color:#fff}
+  .btn.ghost{background:#f1f5f9}
+  .preview-wrap{background:#fff;padding:12px;border-radius:6px;border:1px solid #e5e7eb}
+  /* visual paper (will be rendered to PNG) */
+  .paper{width:calc(var(--frame-width));margin:12px auto;border:1px solid #ddd;background:var(--paper-bg);pointer-events:none}
+  .paper-inner{padding:22px}
+  .title{text-align:center;margin-bottom:10px;font-weight:700;font-size:20px}
+  .table-head{display:grid;grid-template-columns:150px 30px 155px 155px 155px 155px;gap:0px;padding:10px 4px;border-top:1px solid #000;border-bottom:1px solid #000;font-weight:700}
+  .table-row{display:grid;grid-template-columns:150px 30px 155px 155px 155px 150px;gap:0px;padding:10px 4px;border-bottom:1px dashed #bbb;min-height:28px;align-items:center}
+  .paper-inner {
+    position: relative;
+  }
+
+  pre { background: #f0f0f0; padding: 10px; white-space: pre-wrap; }
+  
+  /* 縦破線用クラス */
+  .vert-dashed {
+    position: absolute;
+    top: 52px;
+    bottom: 20px;     /* 下端まで伸ばす */
+    width: 1px;    /* 線の太さ */
+    border-right: 1px dashed #737373; /* Canvasにも描画される */
+  }
+  
+  /* 3つの縦破線の位置を調整 */
+  .vert-dashed.line1 { left: 200px; } /* 解答欄1と2の間 */
+  .vert-dashed.line2 { left: 355px; } /* 解答欄1と2の間 */
+  .vert-dashed.line3 { left: 510px; } /* 解答欄2と3の間 */
+  .vert-dashed.line4 { left: 665px; } /* 解答欄3と答えの間 */
+
+  .note{font-size:12px;color:#444;margin-top:8px}
+  /* hide scrollbars in preview */
+  .paper { -webkit-print-color-adjust: exact; }
+  /* small screens */
+  @media(max-width:900px){
+    :root{--frame-width:680px}
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>B5 単語プリントジェネレーター（HTML版）</h1>
+
+  <div class="controls" id="controls">
+    <div class="row">
+      <label>タイトル</label>
+      <input id="title" type="text" value="英単語練習プリント" />
+      <label style="margin-left:12px">DPI</label>
+      <input id="dpi" type="number" value="300" min="72" max="600" />
+      <button class="btn ghost" id="sampleBtn" style="margin-left:8px">データ</button>
+      <button class="btn primary" id="exportBtn" style="margin-left:auto">B5 PNGで保存</button>
+    </div>
+
+    <div style="margin-top:8px;font-size:13px">上：編集用UI — 下の「プリント用スペース」は非操作です（印刷・出力専用）。</div>
+
+    <hr style="margin:10px 0;border:none;border-top:1px solid #eee">
+
+    <div class="grid-rows" id="editRows">
+      <!-- 16行を JS で生成 -->
+    </div>
+  </div>
+
+  <!-- まず編集用のテキストエリアを用意 -->
+    <textarea id="input" placeholder="ここにコピーしたテキストを貼り付け"></textarea>
+    <button onclick="convert()">変換</button>
+    <pre id="output"></pre>
+
+  <div class="preview-wrap">
+    <div style="font-size:13px;color:#555;margin-bottom:6px">プリント用スペース（操作不可）。上の編集UIで変更してください。</div>
+    <div id="paper" class="paper" style="max-width:var(--frame-width)">
+      <div class="paper-inner" id="paperInner">
+        <div class="title" id="paperTitle">英単語練習プリント</div>
+        <div class="table-head">
+          <div>日本語</div>
+          <div>品</div>
+          <div>解答欄3</div>
+          <div>解答欄2</div>
+          <div>解答欄1</div>
+          <div>英語</div>
+        </div>
+
+        <div id="paperRows">
+          <!-- rows injected by JS -->
+        </div>
+
+        <div class="vert-dashed line1"></div>
+        <div class="vert-dashed line2"></div>
+        <div class="vert-dashed line3"></div>
+        <div class="vert-dashed line4"></div>
+
+        <div class="note"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+<!-- html2canvas を動的に読み込む処理は以下のスクリプトで行います -->
+<script>
+  function convert() {
+  const text = document.getElementById('input').value.trim();
+  if (!text) return alert('テキストを貼り付けてください');
+  
+  const lines = text.split(/\r?\n/);
+  const samples = lines.map(line => {
+    const [jp, en] = line.split(/\t/);
+    return [jp || '', '', '', '', '', en || ''];
+  });
+
+  // 各行を '...' 形式で文字列化
+  const result = samples.map(arr => {
+    return '[' + arr.map(s => `'${s}'`).join(',') + ']';
+  }).join(',\n');
+
+  document.getElementById('output').textContent = result;
+
+  // ✅ 実際に使えるように samples をグローバル変数に代入
+  window.samples = samples;
+}
+    
+
+
+// このあとに pasteイベントを設定
+
+
+const paperRows = document.getElementById('paperRows');
+const rows = paperRows.querySelectorAll('.r'); // class="r" のdivを全行取得
+
+rows.forEach((rowDiv, rowIndex) => {
+  const cols = rowText.split('\t');
+  const inputs = rowDiv.querySelectorAll('input'); // 行内のinputを取得
+  inputs.forEach((input, colIndex) => {
+    if(colIndex < cols.length) input.value = cols[colIndex].trim();
+  });
+});
+
+
+
+(function(){
+
+
+
+  const ROWS = 20;
+  const editRows = document.getElementById('editRows');
+  const paperRows = document.getElementById('paperRows');
+  const titleInput = document.getElementById('title');
+  const paperTitle = document.getElementById('paperTitle');
+  const dpiInput = document.getElementById('dpi');
+  const sampleBtn = document.getElementById('sampleBtn');
+  const exportBtn = document.getElementById('exportBtn');
+
+  // 初期データ構造
+  const data = Array.from({length: ROWS}).map(()=>({jp:'', pos:'', a1:'', a2:'', a3:'', ans:''}));
+
+  // 編集用行を作る
+  function createEditRow(i){
+    const wrapper = document.createElement('div');
+    wrapper.className = 'r';
+    const idx = document.createElement('div');
+    idx.style.width = '28px';
+    idx.style.fontSize = '13px';
+    idx.textContent = (i+1) + '.';
+    wrapper.appendChild(idx);
+
+    const jp = document.createElement('input'); jp.type='text'; jp.className='word'; jp.placeholder='日本語';
+    const pos = document.createElement('input'); pos.type='text'; pos.className='part'; pos.placeholder='品詞';
+    const a1 = document.createElement('input'); a1.type='text'; a1.className='null'; a1.placeholder='解答1';
+    const a2 = document.createElement('input'); a2.type='text'; a2.className='null'; a2.placeholder='解答2';
+    const a3 = document.createElement('input'); a3.type='text'; a3.className='null'; a3.placeholder='解答3';
+    const ans = document.createElement('input'); ans.type='text'; ans.className='small'; ans.placeholder='答え';
+
+    // イベント
+    [jp,ans,pos].forEach((el, idxField)=>{
+      el.addEventListener('input', ()=>{
+        const keys = ['jp','ans','pos'];
+        data[i][keys[idxField]] = el.value;
+        refreshPaperRow(i);
+      });
+    });
+
+    wrapper.appendChild(jp);
+    wrapper.appendChild(ans);
+    wrapper.appendChild(pos);
+    editRows.appendChild(wrapper);
+
+    return {jp,ans,pos};
+  }
+
+  // プリント用行を作る
+  function createPaperRow(i){
+    const div = document.createElement('div');
+    div.className = 'table-row';
+    div.dataset.index = i;
+    div.innerHTML = '<div></div><div></div><div></div><div></div><div></div><div></div>';
+    paperRows.appendChild(div);
+    return div;
+  }
+
+  // 初期構築
+  const editInputs = [];
+  for(let i=0;i<ROWS;i++){
+    editInputs.push(createEditRow(i));
+    createPaperRow(i);
+  }
+
+  // sample fill
+
+  const pre = document.getElementById("output");
+try {
+  const samples = JSON.parse(pre.innerText);  // ← JSON文字列を配列に変換
+  console.log(samples);
+} catch (e) {
+  console.error("JSONの読み込みに失敗:", e);
+}
+
+
+  sampleBtn.addEventListener('click', ()=>{
+    for(let i=0;i<ROWS;i++){
+      const s = samples[i] || ['','','','','','',''];
+      const keys = ['jp','pos','a1','a2','a3','ans'];
+      keys.forEach((k, idx)=> {
+        data[i][k] = s[idx] || '';
+        const inputEl = editInputs[i][k];
+        if(inputEl) inputEl.value = data[i][k];
+      });
+      refreshPaperRow(i);
+    }
+  });
+
+  // refresh single paper row from data
+  function refreshPaperRow(i){
+    const div = paperRows.querySelector('.table-row[data-index="'+i+'"]');
+    if(!div) return;
+    const cells = div.children;
+    cells[0].textContent = data[i].jp || '';
+    cells[1].textContent = data[i].pos || '';
+    cells[2].textContent = ''; // 解答欄は空欄（印刷用）
+    cells[3].textContent = '';
+    cells[4].textContent = '';
+    cells[5].textContent = data[i].ans || '';
+  }
+
+  // タイトル反映
+  titleInput.addEventListener('input', ()=> paperTitle.textContent = titleInput.value);
+
+  // 初回描画（空）
+  for(let i=0;i<ROWS;i++) refreshPaperRow(i);
+
+  // -----------------------------
+  // PNG 出力処理（html2canvas を動的読み込み）
+  // -----------------------------
+  async function ensureHtml2Canvas(){
+    if(window.html2canvas) return window.html2canvas;
+    return new Promise((res,rej)=>{
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+      s.onload = ()=> res(window.html2canvas);
+      s.onerror = ()=> rej(new Error('html2canvas の読み込みに失敗しました'));
+      document.head.appendChild(s);
+    });
+  }
+
+  exportBtn.addEventListener('click', async ()=>{
+    exportBtn.disabled = true;
+    exportBtn.textContent = '出力中...';
+    try{
+      const html2canvas = await ensureHtml2Canvas();
+
+      // B5 physical (mm) -> px
+      const mmToIn = mm => mm / 25.4;
+      const width_mm = 257; // B5 short edge (横) in mm if using landscape; we used portrait: 176x250
+      const height_mm = 364;
+      const dpi = Math.max(72, Math.min(600, Number(dpiInput.value) || 300));
+      const widthPx = Math.round(mmToIn(width_mm) * dpi);
+      const heightPx = Math.round(mmToIn(height_mm) * dpi);
+
+      const paperEl = document.getElementById('paperInner');
+
+      // compute scale to render larger than on-screen
+      const rect = paperEl.getBoundingClientRect();
+      const scale = Math.min(widthPx / rect.width, heightPx / rect.height);
+
+      const canvas = await window.html2canvas(paperEl, {scale: scale, useCORS: true, backgroundColor:'#ffffff'});
+      // ensure final canvas exact B5 by centering onto new canvas
+      const final = document.createElement('canvas');
+      final.width = widthPx; final.height = heightPx;
+      const ctx = final.getContext('2d');
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,final.width, final.height);
+      const dx = Math.max(0, (final.width - canvas.width)/2);
+      const dy = Math.max(0, (final.height - canvas.height)/2);
+      ctx.drawImage(canvas, dx, dy);
+
+      const dataUrl = final.toDataURL('image/png');
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = 'word-sheet-b5-' + Date.now() + '.png';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }catch(err){
+      alert('出力エラー: ' + (err && err.message ? err.message : err));
+      console.error(err);
+    }finally{
+      exportBtn.disabled = false;
+      exportBtn.textContent = 'B5 PNGで保存';
+    }
+
+
+   convertBtn.addEventListener('click', ()=>{
+    const raw = document.getElementById('clipboardInput').value;
+    const lines = raw.split(/\r?\n/);
+    const samples = lines.map(line => {
+        const cols = line.split(/\t|,/);
+        return [cols[0]||'', '', '', '', '', cols[1]||''];
+    });
+
+    for(let i=0;i<ROWS;i++){
+        const s = samples[i] || ['','','','','',''];
+        data[i] = data[i] || {}; // 行初期化
+        const keys = ['jp','pos','a1','a2','a3','ans'];
+        keys.forEach((k, idx)=> {
+            data[i][k] = s[idx] || '';
+            const inputEl = editInputs[i] ? editInputs[i][k] : null;
+            if(inputEl) inputEl.value = data[i][k];
+            else console.log("inputEl missing", i, k);
+        });
+        refreshPaperRow(i);
+    }
+});
+    });
+
+  // initial title sync
+  paperTitle.textContent = titleInput.value;
+
+  // Make sure preview area is non-interactive (pointer-events none already on paper, but ensure inputs in it can't be focused)
+  // (nothing to do, paper has pointer-events:none)
+
+})();
+</script>
+</body>
+</html>
