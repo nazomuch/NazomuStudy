@@ -290,8 +290,8 @@ try {
 
       // B5 physical (mm) -> px
       const mmToIn = mm => mm / 25.4;
-      const width_mm = 257; // B5 short edge (横) in mm if using landscape; we used portrait: 176x250
-      const height_mm = 364;
+      const width_mm = 182; // B5 short edge (横) in mm if using landscape; we used portrait: 176x250
+      const height_mm = 257;
       const dpi = Math.max(72, Math.min(600, Number(dpiInput.value) || 300));
       const widthPx = Math.round(mmToIn(width_mm) * dpi);
       const heightPx = Math.round(mmToIn(height_mm) * dpi);
@@ -361,3 +361,4 @@ try {
 </script>
 </body>
 </html>
+
